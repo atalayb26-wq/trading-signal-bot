@@ -1,4 +1,3 @@
-\
 from __future__ import annotations
 
 from collections import defaultdict
@@ -23,7 +22,12 @@ def normalize_signal(signal: str | None) -> str:
 
 def tr_signal(signal: str | None) -> str:
     normalized = normalize_signal(signal)
-    return {"BUY": "AL", "SELL": "SAT", "NEUTRAL": "NÖTR", "UNKNOWN": "YOK"}.get(normalized, normalized)
+    return {
+        "BUY": "🟢 AL",
+        "SELL": "🔴 SAT",
+        "NEUTRAL": "⚪ NÖTR",
+        "UNKNOWN": "⚪ YOK",
+    }.get(normalized, normalized)
 
 
 def format_price(price: Any) -> str:
@@ -45,16 +49,16 @@ def combined_status(states: list[dict[str, Any]]) -> str:
         return "Veri yok"
     signals = {normalize_signal(row.get("signal")) for row in states}
     if signals == {"BUY"}:
-        return "Güçlü AL"
+        return "🟢 Güçlü AL"
     if signals == {"SELL"}:
-        return "Güçlü SAT"
+        return "🔴 Güçlü SAT"
     if "BUY" in signals and "SELL" in signals:
-        return "Karışık"
+        return "🟡 Karışık"
     if "BUY" in signals:
-        return "AL ağırlıklı"
+        return "🟢 AL ağırlıklı"
     if "SELL" in signals:
-        return "SAT ağırlıklı"
-    return "Nötr / Veri yok"
+        return "🔴 SAT ağırlıklı"
+    return "⚪ Nötr / Veri yok"
 
 
 def build_change_message(update: dict[str, Any]) -> str:
@@ -98,8 +102,8 @@ def build_summary_message(*, instruments: list[dict[str, Any]], states: list[dic
         lines.append(f"Grafik: <b>{escape(expected_timeframe or '-')}</b>")
 
         if not rows:
-            lines.append("AlphaTrend: YOK")
-            lines.append("SuperTrend: YOK")
+            lines.append("AlphaTrend: ⚪ YOK")
+            lines.append("SuperTrend: ⚪ YOK")
             lines.append("Genel durum: Veri yok")
             lines.append("")
             continue
@@ -107,7 +111,7 @@ def build_summary_message(*, instruments: list[dict[str, Any]], states: list[dic
         by_indicator = {row["indicator"]: row for row in rows}
         for indicator in ("AlphaTrend", "SuperTrend"):
             row = by_indicator.get(indicator)
-            sig = tr_signal(row.get("signal")) if row else "YOK"
+            sig = tr_signal(row.get("signal")) if row else "⚪ YOK"
             price = format_price(row.get("price")) if row else "-"
             lines.append(f"{escape(indicator)}: <b>{escape(sig)}</b> | Fiyat: {escape(price)}")
         lines.append(f"Genel durum: <b>{escape(combined_status(rows))}</b>")

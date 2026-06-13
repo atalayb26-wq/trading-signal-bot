@@ -1,12 +1,40 @@
-# Trading Signal Telegram Bot — Standalone Edition v4
+# Trading Signal Telegram Bot — Standalone Edition v5
 
-Bu sürüm TradingView aboneliği, webhook ve Binance API kullanmadan çalışır.
+Bu sürümde tüm enstrümanlar günlük grafiğe çevrilmiştir.
 
-v4 düzeltmesi:
-- BIST 100/USD için Yahoo haftalık timestamp uyuşmazlığına karşı oran önce günlük veriden hesaplanır, sonra haftalığa çevrilir.
-- XU100/USD = XU100.IS / TRY=X
+## Takip periyotları
 
-## Test
+- Altın/USD: 1D
+- BTC/USD: 1D
+- ETH/USD: 1D
+- S&P 500/USD: 1D
+- Nasdaq/USD: 1D
+- BIST 100/USD: 1D
+
+## Değişen dosya
+
+Ana değişiklik sadece şu dosyadadır:
+
+```text
+config/instruments.json
+```
+
+Her enstrüman için:
+
+```json
+"timeframe": "1D",
+"engine_interval": "1d"
+```
+
+olarak güncellendi.
+
+## Deploy
+
+1. Bu ZIP içeriğini GitHub repo'ya yükle.
+2. Eski dosyaların üzerine yaz.
+3. Commit et.
+4. Render → Manual Deploy → Deploy latest commit.
+5. Test için:
 
 ```powershell
 $response = Invoke-RestMethod `
@@ -17,11 +45,7 @@ $response = Invoke-RestMethod `
 $response | ConvertTo-Json -Depth 20
 ```
 
-Beklenen:
-- updated_count: 6
-- error_count: 0
-
-Özet:
+Özet için:
 
 ```powershell
 Invoke-RestMethod `
@@ -30,11 +54,14 @@ Invoke-RestMethod `
   -Headers @{ "X-Admin-Token" = "ADMIN_TOKEN_DEGERIN" }
 ```
 
-## Veri kaynakları
 
-- BTC/USD: Yahoo Chart `BTC-USD`
-- ETH/USD: Yahoo Chart `ETH-USD`
-- Altın/USD: Yahoo Chart `GC=F`
-- S&P 500: Yahoo Chart `^GSPC`
-- Nasdaq 100: Yahoo Chart `^NDX`
-- BIST 100/USD: `XU100.IS / TRY=X`
+## v6 görsel sinyal iyileştirmesi
+
+Bu sürümde AL / SAT ifadelerinin yanına renkli ikon eklendi:
+
+- `🟢 AL`
+- `🔴 SAT`
+- `⚪ NÖTR`
+- `⚪ YOK`
+
+Bu değişiklik hem günlük özet mesajında hem de sinyal değişim mesajlarında görünür.
