@@ -1,0 +1,64 @@
+{
+  "instruments": [
+    {
+      "key": "XAUUSD",
+      "name": "Altın/USD",
+      "symbol": "XAUUSD",
+      "tv_symbol": "OANDA:XAUUSD",
+      "timeframe": "1W",
+      "emoji": "🟡",
+      "asset_class": "commodity",
+      "aliases": ["XAUUSD", "OANDA:XAUUSD", "TVC:GOLD", "GOLD"]
+    },
+    {
+      "key": "BTCUSD",
+      "name": "Bitcoin/USD",
+      "symbol": "BTCUSD",
+      "tv_symbol": "BINANCE:BTCUSDT",
+      "timeframe": "1D",
+      "emoji": "₿",
+      "asset_class": "crypto",
+      "aliases": ["BTCUSD", "BTCUSDT", "BINANCE:BTCUSDT", "COINBASE:BTCUSD", "CRYPTO:BTCUSD"]
+    },
+    {
+      "key": "ETHUSD",
+      "name": "Ethereum/USD",
+      "symbol": "ETHUSD",
+      "tv_symbol": "BINANCE:ETHUSDT",
+      "timeframe": "1D",
+      "emoji": "Ξ",
+      "asset_class": "crypto",
+      "aliases": ["ETHUSD", "ETHUSDT", "BINANCE:ETHUSDT", "COINBASE:ETHUSD", "CRYPTO:ETHUSD"]
+    },
+    {
+      "key": "SP500",
+      "name": "S&P 500/USD",
+      "symbol": "SP500",
+      "tv_symbol": "SP:SPX",
+      "timeframe": "1W",
+      "emoji": "🇺🇸",
+      "asset_class": "us_equity",
+      "aliases": ["SP:SPX", "SPX", "SP500", "TVC:SPX", "AMEX:SPY", "SPY"]
+    },
+    {
+      "key": "NASDAQ",
+      "name": "Nasdaq/USD",
+      "symbol": "NASDAQ",
+      "tv_symbol": "NASDAQ:NDX",
+      "timeframe": "1W",
+      "emoji": "💻",
+      "asset_class": "us_equity",
+      "aliases": ["NASDAQ:NDX", "NDX", "NASDAQ", "TVC:IXIC", "NASDAQ:QQQ", "QQQ", "OANDA:NAS100USD", "NAS100"]
+    },
+    {
+      "key": "XU100USD",
+      "name": "BIST 100/USD",
+      "symbol": "XU100USD",
+      "tv_symbol": "BIST:XU100/FX_IDC:USDTRY",
+      "timeframe": "1W",
+      "emoji": "🇹🇷",
+      "asset_class": "tr_equity",
+      "aliases": ["XU100USD", "BIST:XU100/FX_IDC:USDTRY", "BIST:XU100", "XU100"]
+    }
+  ]
+}

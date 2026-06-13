@@ -1,0 +1,120 @@
+\
+/*
+TradingView Pine Script v5
+Amaç:
+- AlphaTrend benzeri trend sinyali + SuperTrend sinyalini tek scriptte izlemek
+- Her parite/timeframe için tek TradingView alarmı kullanmak
+- FastAPI webhook endpointine JSON göndermek
+
+Kurulum:
+1. TradingView Pine Editor'a yapıştır.
+2. Add to chart.
+3. Grafik timeframe'ini enstrümana özel seç:
+   - Altın: 1W
+   - BTC/ETH: 1D
+   - SP500/Nasdaq/XU100USD: kendi kararın, örn 1W
+4. Alarm oluştur:
+   - Condition: Bu script → Any alert() function call
+   - Options: Once Per Bar Close
+   - Webhook URL: https://domain.com/webhook/tradingview
+5. Script input'undaki Webhook Secret, .env dosyasındaki WEBHOOK_SECRET ile aynı olmalı.
+
+Not:
+Bu script, açık formüllerle yazılmış birleşik bir webhook şablonudur.
+TradingView'de kullandığın orijinal AlphaTrend/SuperTrend ayarları farklıysa input değerlerini birebir eşitle.
+*/
+
+//@version=5
+indicator("Combined AlphaTrend + SuperTrend Webhook", overlay=true, max_labels_count=500)
+
+// -------------------------
+// Webhook ayarları
+// -------------------------
+webhookSecret = input.string("", "Webhook Secret", group="Webhook")
+sendSnapshotEveryClose = input.bool(true, "Her mum kapanışında snapshot gönder", group="Webhook")
+plotSignals = input.bool(true, "Grafikte sinyal etiketlerini göster", group="Görsel")
+
+// -------------------------
+// AlphaTrend benzeri ayarlar
+// -------------------------
+alphaCoeff = input.float(1.0, "AlphaTrend Multiplier", step=0.1, group="AlphaTrend")
+alphaPeriod = input.int(14, "AlphaTrend Period", minval=1, group="AlphaTrend")
+alphaSrc = input.source(close, "AlphaTrend Source", group="AlphaTrend")
+useRsiInsteadOfMfi = input.bool(false, "Volume olmayan sembollerde RSI kullan", group="AlphaTrend")
+
+alphaAtr = ta.sma(ta.tr(true), alphaPeriod)
+alphaUp = low - alphaAtr * alphaCoeff
+alphaDown = high + alphaAtr * alphaCoeff
+
+alphaMomentum = useRsiInsteadOfMfi ? ta.rsi(alphaSrc, alphaPeriod) >= 50 : ta.mfi(hlc3, alphaPeriod) >= 50
+
+var float alphaTrend = na
+alphaTrend := alphaMomentum
+     ? math.max(alphaUp, nz(alphaTrend[1], alphaUp))
+     : math.min(alphaDown, nz(alphaTrend[1], alphaDown))
+
+alphaBuy = ta.crossover(alphaTrend, alphaTrend[2])
+alphaSell = ta.crossunder(alphaTrend, alphaTrend[2])
+
+var string alphaState = "NEUTRAL"
+if barstate.isconfirmed
+    if alphaBuy
+        alphaState := "BUY"
+    else if alphaSell
+        alphaState := "SELL"
+
+alphaChanged = barstate.isconfirmed and (alphaBuy or alphaSell)
+
+// -------------------------
+// SuperTrend ayarları
+// -------------------------
+superFactor = input.float(3.0, "SuperTrend Factor", step=0.1, group="SuperTrend")
+superAtrPeriod = input.int(10, "SuperTrend ATR Period", minval=1, group="SuperTrend")
+
+[superTrend, superDirection] = ta.supertrend(superFactor, superAtrPeriod)
+
+// TradingView ta.supertrend yön kullanımında çoğu örnekte direction < 0 yükseliş trendi olarak kullanılır.
+superState = superDirection < 0 ? "BUY" : "SELL"
+superChanged = barstate.isconfirmed and ta.change(superDirection) != 0
+
+// -------------------------
+// JSON helpers
+// -------------------------
+boolToJson(value) =>
+    value ? "true" : "false"
+
+jsonString() =>
+    eventType = (alphaChanged or superChanged) ? "SIGNAL_CHANGE" : "BAR_CLOSE"
+    "{"
+     + "\"secret\":\"" + webhookSecret + "\","
+     + "\"symbol\":\"" + syminfo.tickerid + "\","
+     + "\"ticker\":\"" + syminfo.ticker + "\","
+     + "\"timeframe\":\"" + timeframe.period + "\","
+     + "\"price\":" + str.tostring(close) + ","
+     + "\"barTimeUnix\":" + str.tostring(time) + ","
+     + "\"eventType\":\"" + eventType + "\","
+     + "\"alphaTrendSignal\":\"" + alphaState + "\","
+     + "\"superTrendSignal\":\"" + superState + "\","
+     + "\"alphaTrendChanged\":" + boolToJson(alphaChanged) + ","
+     + "\"superTrendChanged\":" + boolToJson(superChanged)
+     + "}"
+
+// -------------------------
+// Alert
+// -------------------------
+shouldSend = barstate.isconfirmed and (sendSnapshotEveryClose or alphaChanged or superChanged)
+
+if shouldSend
+    alert(jsonString(), alert.freq_once_per_bar_close)
+
+// -------------------------
+// Görsel
+// -------------------------
+plot(alphaTrend, "AlphaTrend", color=alphaState == "BUY" ? color.new(color.green, 0) : color.new(color.red, 0), linewidth=2)
+plot(superTrend, "SuperTrend", color=superState == "BUY" ? color.new(color.green, 20) : color.new(color.red, 20), linewidth=2)
+
+plotshape(plotSignals and alphaBuy, title="AlphaTrend BUY", text="AT AL", style=shape.labelup, location=location.belowbar, size=size.tiny, color=color.new(color.green, 0), textcolor=color.white)
+plotshape(plotSignals and alphaSell, title="AlphaTrend SELL", text="AT SAT", style=shape.labeldown, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0), textcolor=color.white)
+
+plotshape(plotSignals and superChanged and superState == "BUY", title="SuperTrend BUY", text="ST AL", style=shape.triangleup, location=location.belowbar, size=size.tiny, color=color.new(color.green, 0), textcolor=color.white)
+plotshape(plotSignals and superChanged and superState == "SELL", title="SuperTrend SELL", text="ST SAT", style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0), textcolor=color.white)
