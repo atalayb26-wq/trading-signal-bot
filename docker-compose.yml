@@ -1,0 +1,12 @@
+services:
+  trading-signal-bot:
+    build: .
+    container_name: trading-signal-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
