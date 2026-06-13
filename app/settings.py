@@ -1,6 +1,6 @@
 \
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,6 +18,18 @@ def _int_env(name: str, default: int) -> int:
     if raw is None or raw.strip() == "":
         return default
     return int(raw)
+
+
+def _csv_int_env(name: str, default: list[int]) -> list[int]:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    result: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if part:
+            result.append(int(part))
+    return result or default
 
 
 @dataclass(frozen=True)
@@ -38,6 +50,10 @@ class Settings:
 
     notify_on_first_signal: bool = _bool_env("NOTIFY_ON_FIRST_SIGNAL", False)
     notify_on_bar_close_snapshot: bool = _bool_env("NOTIFY_ON_BAR_CLOSE_SNAPSHOT", False)
+
+    enable_signal_engine: bool = _bool_env("ENABLE_SIGNAL_ENGINE", True)
+    engine_hours: list[int] = field(default_factory=lambda: _csv_int_env("ENGINE_HOURS", [9]))
+    market_data_lookback_bars: int = _int_env("MARKET_DATA_LOOKBACK_BARS", 350)
 
     @property
     def telegram_configured(self) -> bool:

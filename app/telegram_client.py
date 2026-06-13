@@ -15,7 +15,7 @@ class TelegramClient:
 
     async def send_message(self, text: str, *, disable_web_page_preview: bool = True) -> dict:
         if not self.configured:
-            raise RuntimeError("Telegram ayarları eksik. TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID girilmeli.")
+            raise RuntimeError("Telegram ayarları eksik.")
 
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         payload = {

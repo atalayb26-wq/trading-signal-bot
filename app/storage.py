@@ -91,10 +91,7 @@ class SignalStorage:
 
         with self._lock:
             previous_row = self._conn.execute(
-                """
-                SELECT signal FROM signal_states
-                WHERE instrument_key = ? AND timeframe = ? AND indicator = ?
-                """,
+                "SELECT signal FROM signal_states WHERE instrument_key = ? AND timeframe = ? AND indicator = ?",
                 (instrument_key, timeframe, indicator),
             ).fetchone()
 
@@ -121,20 +118,7 @@ class SignalStorage:
                     last_event_type = excluded.last_event_type,
                     raw_payload = excluded.raw_payload;
                 """,
-                (
-                    instrument_key,
-                    display_name,
-                    symbol,
-                    raw_symbol,
-                    timeframe,
-                    indicator,
-                    signal,
-                    price,
-                    tv_time,
-                    received_at,
-                    event_type,
-                    raw_payload_json,
-                ),
+                (instrument_key, display_name, symbol, raw_symbol, timeframe, indicator, signal, price, tv_time, received_at, event_type, raw_payload_json),
             )
 
             self._conn.execute(
@@ -145,24 +129,8 @@ class SignalStorage:
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (
-                    instrument_key,
-                    display_name,
-                    symbol,
-                    raw_symbol,
-                    timeframe,
-                    indicator,
-                    signal,
-                    previous_signal,
-                    1 if changed else 0,
-                    price,
-                    tv_time,
-                    received_at,
-                    event_type,
-                    raw_payload_json,
-                ),
+                (instrument_key, display_name, symbol, raw_symbol, timeframe, indicator, signal, previous_signal, 1 if changed else 0, price, tv_time, received_at, event_type, raw_payload_json),
             )
-
             self._conn.commit()
 
         return {
@@ -184,57 +152,16 @@ class SignalStorage:
 
     def latest_states(self) -> list[dict[str, Any]]:
         with self._lock:
-            rows = self._conn.execute(
-                """
-                SELECT *
-                FROM signal_states
-                ORDER BY instrument_key, timeframe, indicator
-                """
-            ).fetchall()
-        return [dict(row) for row in rows]
-
-    def latest_states_for_key(self, instrument_key: str, timeframe: str | None = None) -> list[dict[str, Any]]:
-        if timeframe:
-            sql = """
-                SELECT *
-                FROM signal_states
-                WHERE instrument_key = ? AND timeframe = ?
-                ORDER BY indicator
-            """
-            params = (instrument_key, timeframe)
-        else:
-            sql = """
-                SELECT *
-                FROM signal_states
-                WHERE instrument_key = ?
-                ORDER BY timeframe, indicator
-            """
-            params = (instrument_key,)
-
-        with self._lock:
-            rows = self._conn.execute(sql, params).fetchall()
+            rows = self._conn.execute("SELECT * FROM signal_states ORDER BY instrument_key, timeframe, indicator").fetchall()
         return [dict(row) for row in rows]
 
     def history(self, *, limit: int = 100, instrument_key: str | None = None) -> list[dict[str, Any]]:
         limit = max(1, min(int(limit), 1000))
         if instrument_key:
-            sql = """
-                SELECT *
-                FROM signal_history
-                WHERE instrument_key = ?
-                ORDER BY id DESC
-                LIMIT ?
-            """
-            params: tuple[Any, ...] = (instrument_key, limit)
+            rows = self._conn.execute(
+                "SELECT * FROM signal_history WHERE instrument_key = ? ORDER BY id DESC LIMIT ?",
+                (instrument_key, limit),
+            ).fetchall()
         else:
-            sql = """
-                SELECT *
-                FROM signal_history
-                ORDER BY id DESC
-                LIMIT ?
-            """
-            params = (limit,)
-
-        with self._lock:
-            rows = self._conn.execute(sql, params).fetchall()
+            rows = self._conn.execute("SELECT * FROM signal_history ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return [dict(row) for row in rows]

@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from app.instruments import InstrumentRegistry
 from app.reporting import build_change_message, build_summary_message, normalize_signal
 from app.settings import settings
+from app.signal_engine import run_signal_engine_once
 from app.storage import SignalStorage
 from app.telegram_client import TelegramClient
 
@@ -21,14 +22,6 @@ def get_any(payload: dict[str, Any], keys: tuple[str, ...], default: Any = None)
         if key in payload and payload[key] not in (None, ""):
             return payload[key]
     return default
-
-
-def parse_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return False
-    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def parse_float(value: Any) -> float | None:
@@ -48,24 +41,20 @@ def require_admin(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Geçersiz admin token.")
 
 
-async def send_daily_summary(app: FastAPI) -> None:
-    storage: SignalStorage = app.state.storage
-    instruments: InstrumentRegistry = app.state.instruments
-    telegram: TelegramClient = app.state.telegram
-
-    message = build_summary_message(
-        instruments=instruments.ordered(),
-        states=storage.latest_states(),
-        timezone_name=settings.app_timezone,
-    )
-    await telegram.send_message(message)
+async def run_engine_job(app: FastAPI) -> dict[str, Any]:
+    return await run_signal_engine_once(instruments=app.state.instruments.ordered(), storage=app.state.storage, telegram=app.state.telegram, send_change_notifications=True)
 
 
-app = FastAPI(
-    title="Trading Signal Telegram Bot",
-    version="1.0.0",
-    description="TradingView webhook alır, AlphaTrend/SuperTrend sinyallerini saklar ve Telegram'a raporlar.",
-)
+async def send_daily_summary(app: FastAPI, *, run_engine_first: bool = True) -> dict[str, Any]:
+    engine_result = None
+    if run_engine_first and settings.enable_signal_engine:
+        engine_result = await run_engine_job(app)
+    message = build_summary_message(instruments=app.state.instruments.ordered(), states=app.state.storage.latest_states(), timezone_name=settings.app_timezone)
+    await app.state.telegram.send_message(message)
+    return {"summary_sent": True, "engine_result": engine_result}
+
+
+app = FastAPI(title="Trading Signal Telegram Bot", version="2.0.0", description="TradingView bağımsız AlphaTrend/SuperTrend sinyal botu.")
 
 
 @app.on_event("startup")
@@ -80,42 +69,71 @@ async def startup() -> None:
     if settings.enable_daily_summary:
         scheduler.add_job(
             send_daily_summary,
-            CronTrigger(
-                hour=settings.report_hour,
-                minute=settings.report_minute,
-                timezone=ZoneInfo(settings.app_timezone),
-            ),
+            CronTrigger(hour=settings.report_hour, minute=settings.report_minute, timezone=ZoneInfo(settings.app_timezone)),
             args=[app],
+            kwargs={"run_engine_first": True},
             id="daily-summary",
             replace_existing=True,
             misfire_grace_time=300,
         )
+
+    if settings.enable_signal_engine:
+        for hour in settings.engine_hours:
+            if hour == settings.report_hour:
+                continue
+            scheduler.add_job(run_engine_job, CronTrigger(hour=hour, minute=5, timezone=ZoneInfo(settings.app_timezone)), args=[app], id=f"engine-run-{hour}", replace_existing=True, misfire_grace_time=300)
+
+    if settings.enable_daily_summary or settings.enable_signal_engine:
         scheduler.start()
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
-    scheduler: AsyncIOScheduler | None = getattr(app.state, "scheduler", None)
+    scheduler = getattr(app.state, "scheduler", None)
     if scheduler and scheduler.running:
         scheduler.shutdown(wait=False)
 
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    return {
-        "ok": True,
-        "telegram_configured": settings.telegram_configured,
-        "webhook_configured": settings.webhook_configured,
-        "daily_summary_enabled": settings.enable_daily_summary,
-        "timezone": settings.app_timezone,
-        "report_time": f"{settings.report_hour:02d}:{settings.report_minute:02d}",
-    }
+    return {"ok": True, "version": "2.0.0-standalone", "telegram_configured": settings.telegram_configured, "webhook_configured": settings.webhook_configured, "signal_engine_enabled": settings.enable_signal_engine, "daily_summary_enabled": settings.enable_daily_summary, "timezone": settings.app_timezone, "report_time": f"{settings.report_hour:02d}:{settings.report_minute:02d}", "engine_hours": settings.engine_hours}
+
+
+@app.post("/engine/run-now")
+async def engine_run_now(request: Request) -> dict[str, Any]:
+    require_admin(request)
+    return await run_engine_job(app)
+
+
+@app.post("/summary/send-now")
+async def send_summary_now(request: Request) -> dict[str, Any]:
+    require_admin(request)
+    result = await send_daily_summary(app, run_engine_first=True)
+    return {"ok": True, **result}
+
+
+@app.post("/telegram/test")
+async def telegram_test(request: Request) -> dict[str, Any]:
+    require_admin(request)
+    result = await app.state.telegram.send_message("✅ <b>Trading Signal Bot test mesajı başarılı.</b>")
+    return {"ok": True, "telegram_response": result}
+
+
+@app.get("/signals/latest")
+async def latest_signals(request: Request) -> dict[str, Any]:
+    require_admin(request)
+    return {"ok": True, "items": app.state.storage.latest_states()}
+
+
+@app.get("/signals/history")
+async def signal_history(request: Request, limit: int = 100, instrument_key: str | None = None) -> dict[str, Any]:
+    require_admin(request)
+    return {"ok": True, "items": app.state.storage.history(limit=limit, instrument_key=instrument_key)}
 
 
 @app.post("/webhook/tradingview")
 async def tradingview_webhook(request: Request) -> dict[str, Any]:
     payload = await request.json()
-
     received_secret = str(get_any(payload, ("secret", "webhookSecret", "token"), ""))
     if not settings.webhook_configured:
         raise HTTPException(status_code=503, detail="WEBHOOK_SECRET tanımlı değil.")
@@ -127,48 +145,29 @@ async def tradingview_webhook(request: Request) -> dict[str, Any]:
     price = parse_float(get_any(payload, ("price", "close", "lastPrice")))
     tv_time = str(get_any(payload, ("time", "barTime", "barTimeUnix", "t"), "")) or None
     event_type = str(get_any(payload, ("eventType", "event_type", "event"), "UNKNOWN")).upper()
+    instrument = app.state.instruments.resolve(raw_symbol, timeframe)
 
-    registry: InstrumentRegistry = app.state.instruments
-    instrument = registry.resolve(raw_symbol, timeframe)
-
-    symbol = instrument.get("symbol") or raw_symbol
-    instrument_key = instrument["key"]
-    display_name = instrument.get("name") or raw_symbol
-
-    candidate_updates: list[tuple[str, str]] = []
-
+    candidate_updates = []
     alpha_signal = get_any(payload, ("alphaTrendSignal", "alpha_signal", "alphaTrend", "alpha"))
     super_signal = get_any(payload, ("superTrendSignal", "super_signal", "superTrend", "super"))
-
     if alpha_signal:
         candidate_updates.append(("AlphaTrend", normalize_signal(str(alpha_signal))))
     if super_signal:
         candidate_updates.append(("SuperTrend", normalize_signal(str(super_signal))))
-
-    # Alternatif payload formatı:
-    # {"indicator": "AlphaTrend", "signal": "BUY"}
     indicator = get_any(payload, ("indicator", "indicatorName"))
     signal = get_any(payload, ("signal", "side"))
     if indicator and signal and not candidate_updates:
         candidate_updates.append((str(indicator), normalize_signal(str(signal))))
 
     if not candidate_updates:
-        raise HTTPException(
-            status_code=422,
-            detail="Payload içinde alphaTrendSignal/superTrendSignal veya indicator+signal bulunamadı.",
-        )
+        raise HTTPException(status_code=422, detail="Payload içinde sinyal bulunamadı.")
 
-    storage: SignalStorage = app.state.storage
-    telegram: TelegramClient = app.state.telegram
-
-    updates: list[dict[str, Any]] = []
-    sent_messages: list[dict[str, Any]] = []
-
+    updates = []
     for indicator_name, normalized_signal in candidate_updates:
-        update = storage.upsert_signal(
-            instrument_key=instrument_key,
-            display_name=display_name,
-            symbol=symbol,
+        update = app.state.storage.upsert_signal(
+            instrument_key=instrument["key"],
+            display_name=instrument.get("name") or raw_symbol,
+            symbol=instrument.get("symbol") or raw_symbol,
             raw_symbol=raw_symbol,
             timeframe=timeframe,
             indicator=indicator_name,
@@ -179,52 +178,6 @@ async def tradingview_webhook(request: Request) -> dict[str, Any]:
             raw_payload=payload,
         )
         updates.append(update)
-
-        is_snapshot = event_type == "BAR_CLOSE"
-        should_notify_change = update["changed"] or (settings.notify_on_first_signal and update["first_insert"])
-        should_notify_snapshot = settings.notify_on_bar_close_snapshot and is_snapshot
-
-        if settings.telegram_configured and (should_notify_change or should_notify_snapshot):
-            text = build_change_message(update)
-            result = await telegram.send_message(text)
-            sent_messages.append({"indicator": indicator_name, "telegram_ok": bool(result.get("ok"))})
-
-    return {
-        "ok": True,
-        "instrument_key": instrument_key,
-        "display_name": display_name,
-        "raw_symbol": raw_symbol,
-        "timeframe": timeframe,
-        "event_type": event_type,
-        "updates": updates,
-        "telegram_messages": sent_messages,
-    }
-
-
-@app.post("/telegram/test")
-async def telegram_test(request: Request) -> dict[str, Any]:
-    require_admin(request)
-    telegram: TelegramClient = app.state.telegram
-    result = await telegram.send_message("✅ <b>Trading Signal Bot test mesajı başarılı.</b>")
-    return {"ok": True, "telegram_response": result}
-
-
-@app.post("/summary/send-now")
-async def send_summary_now(request: Request) -> dict[str, Any]:
-    require_admin(request)
-    await send_daily_summary(app)
-    return {"ok": True}
-
-
-@app.get("/signals/latest")
-async def latest_signals(request: Request) -> dict[str, Any]:
-    require_admin(request)
-    storage: SignalStorage = app.state.storage
-    return {"ok": True, "items": storage.latest_states()}
-
-
-@app.get("/signals/history")
-async def signal_history(request: Request, limit: int = 100, instrument_key: str | None = None) -> dict[str, Any]:
-    require_admin(request)
-    storage: SignalStorage = app.state.storage
-    return {"ok": True, "items": storage.history(limit=limit, instrument_key=instrument_key)}
+        if settings.telegram_configured and (update["changed"] or (settings.notify_on_first_signal and update["first_insert"])):
+            await app.state.telegram.send_message(build_change_message(update))
+    return {"ok": True, "updates": updates}
