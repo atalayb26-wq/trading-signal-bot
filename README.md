@@ -1,22 +1,22 @@
-# Trading Signal Telegram Bot — Standalone Edition
+# Trading Signal Telegram Bot — Standalone Edition v3
 
-Bu sürümde TradingView aboneliği ve webhook zorunlu değildir.
+Bu sürümde TradingView aboneliği, webhook ve Binance API kullanılmaz.
 
-Uygulama:
-1. Piyasa verisini kendi çeker.
-2. AlphaTrend ve SuperTrend sinyallerini hesaplar.
-3. SQLite'a kaydeder.
-4. Telegram'a sinyal değişimi ve günlük özet gönderir.
+Neden v3?
+- Render sunucusundan Binance API'ye istek atınca bazı bölgelerde 451 hatası alınabiliyor.
+- yfinance bazı sunucu ortamlarında boş veri döndürebiliyor.
+- Bu sürüm doğrudan Yahoo Chart endpoint'inden veri çeker.
 
 ## Veri kaynakları
 
-- BTC/ETH: Binance public kline API
-- Altın, S&P 500, Nasdaq, XU100, USDTRY: yfinance
-- XU100/USD: XU100.IS / USDTRY=X oranı
+- BTC/USD: Yahoo Chart `BTC-USD`
+- ETH/USD: Yahoo Chart `ETH-USD`
+- Altın/USD: Yahoo Chart `GC=F`
+- S&P 500: Yahoo Chart `^GSPC`
+- Nasdaq 100: Yahoo Chart `^NDX`
+- BIST 100/USD: `XU100.IS / TRY=X`
 
 ## Render environment variables
-
-Render panelinde Environment kısmına şunları ekle:
 
 ```env
 ADMIN_TOKEN=senin-admin-token
@@ -33,7 +33,7 @@ ENGINE_HOURS=09
 MARKET_DATA_LOOKBACK_BARS=350
 ```
 
-`WEBHOOK_SECRET` artık zorunlu değil; eski webhook testleri için kullanılabilir.
+`WEBHOOK_SECRET` artık zorunlu değildir.
 
 ## Render build ayarları
 
@@ -57,25 +57,18 @@ Health:
 Invoke-RestMethod -Uri "https://SENIN-RENDER-URL.onrender.com/health"
 ```
 
-Telegram test:
+Sinyal motoru:
 
 ```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri "https://SENIN-RENDER-URL.onrender.com/telegram/test" `
-  -Headers @{ "X-Admin-Token" = "ADMIN_TOKEN_DEGERIN" }
-```
-
-Sinyal motorunu manuel çalıştır:
-
-```powershell
-Invoke-RestMethod `
+$response = Invoke-RestMethod `
   -Method Post `
   -Uri "https://SENIN-RENDER-URL.onrender.com/engine/run-now" `
   -Headers @{ "X-Admin-Token" = "ADMIN_TOKEN_DEGERIN" }
+
+$response | ConvertTo-Json -Depth 20
 ```
 
-Günlük özeti manuel gönder:
+Özet gönder:
 
 ```powershell
 Invoke-RestMethod `
@@ -83,19 +76,3 @@ Invoke-RestMethod `
   -Uri "https://SENIN-RENDER-URL.onrender.com/summary/send-now" `
   -Headers @{ "X-Admin-Token" = "ADMIN_TOKEN_DEGERIN" }
 ```
-
-`/summary/send-now` önce sinyal motorunu çalıştırır, sonra Telegram'a güncel özeti yollar.
-
-## Manuel TradingView kontrolü
-
-TradingView ücretsiz sürümde ilgili grafiği açıp aynı periyot ve default ayarlarla gözle karşılaştırabilirsin.
-
-Başlangıç ayarları:
-- BTC: BINANCE:BTCUSDT / 1D
-- ETH: BINANCE:ETHUSDT / 1D
-- Altın: XAUUSD veya GOLD / 1W
-- SP500: SPX / 1W
-- Nasdaq: NDX / 1W
-- XU100/USD: BIST:XU100 / USDTRY / 1W
-
-Veri kaynağı ve seans farkları yüzünden birebir aynı sonuç garanti değildir.

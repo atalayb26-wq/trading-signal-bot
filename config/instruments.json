@@ -6,7 +6,7 @@
       "symbol": "XAUUSD",
       "timeframe": "1W",
       "engine_interval": "1wk",
-      "data_provider": "yfinance",
+      "data_provider": "yahoo_chart",
       "data_symbol": "GC=F",
       "emoji": "🟡",
       "aliases": [
@@ -23,12 +23,13 @@
       "symbol": "BTCUSD",
       "timeframe": "1D",
       "engine_interval": "1d",
-      "data_provider": "binance",
-      "data_symbol": "BTCUSDT",
+      "data_provider": "yahoo_chart",
+      "data_symbol": "BTC-USD",
       "emoji": "₿",
       "aliases": [
         "BTCUSD",
         "BTCUSDT",
+        "BTC-USD",
         "BINANCE:BTCUSDT",
         "COINBASE:BTCUSD"
       ]
@@ -39,12 +40,13 @@
       "symbol": "ETHUSD",
       "timeframe": "1D",
       "engine_interval": "1d",
-      "data_provider": "binance",
-      "data_symbol": "ETHUSDT",
+      "data_provider": "yahoo_chart",
+      "data_symbol": "ETH-USD",
       "emoji": "Ξ",
       "aliases": [
         "ETHUSD",
         "ETHUSDT",
+        "ETH-USD",
         "BINANCE:ETHUSDT",
         "COINBASE:ETHUSD"
       ]
@@ -55,7 +57,7 @@
       "symbol": "SP500",
       "timeframe": "1W",
       "engine_interval": "1wk",
-      "data_provider": "yfinance",
+      "data_provider": "yahoo_chart",
       "data_symbol": "^GSPC",
       "emoji": "🇺🇸",
       "aliases": [
@@ -71,7 +73,7 @@
       "symbol": "NASDAQ",
       "timeframe": "1W",
       "engine_interval": "1wk",
-      "data_provider": "yfinance",
+      "data_provider": "yahoo_chart",
       "data_symbol": "^NDX",
       "emoji": "💻",
       "aliases": [
@@ -88,10 +90,10 @@
       "symbol": "XU100USD",
       "timeframe": "1W",
       "engine_interval": "1wk",
-      "data_provider": "yfinance_ratio",
-      "data_symbol": "XU100.IS/USDTRY=X",
+      "data_provider": "yahoo_ratio",
+      "data_symbol": "XU100.IS/TRY=X",
       "numerator_symbol": "XU100.IS",
-      "denominator_symbol": "USDTRY=X",
+      "denominator_symbol": "TRY=X",
       "emoji": "🇹🇷",
       "aliases": [
         "XU100USD",
